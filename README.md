@@ -18,7 +18,7 @@ Este es **su repositorio personal** del módulo. Aquí se guardan sus cuadernos 
 | Proyecto · 40 pts | carpeta `proyecto/` (repo del grupo) + defensa | Jueves 19-nov, 18:00 |
 
 En cada cuaderno de clase: **70 %** checkpoints correctos y **30 %** respuestas a las preguntas.
-**Lo que no se guarda en GitHub dentro del plazo no se califica.** Las faltas justificadas formalmente tienen plazo hasta la siguiente entrega.
+**Plazos de cada cuaderno de clase:** guardado hasta las 22:30 del día de la clase = sobre 100 · al día siguiente hasta las 22:30 = sobre 70 · después, no se califica. Falta justificada formalmente (confirmada por el docente) = sobre 100 aunque se guarde uno o dos días después.
 
 ## Estructura
 ```

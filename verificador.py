@@ -31,7 +31,11 @@ def estado_plazo(clave, cuando):
         return "—"
     limite = datetime.strptime(PLAZOS[clave], "%Y-%m-%d %H:%M").replace(tzinfo=EC)
     txt = cuando.strftime("%d-%m %H:%M")
-    return f"{txt} ✅ a tiempo" if cuando <= limite else f"{txt} ⚠️ después del plazo ({PLAZOS[clave]})"
+    if cuando <= limite:
+        return f"{txt} ✅ a tiempo"
+    if clave.startswith("clase") and cuando <= limite + timedelta(days=1):
+        return f"{txt} ⏳ tardío: se califica sobre 70"
+    return f"{txt} ⚠️ fuera de plazo ({PLAZOS[clave]}); solo con falta justificada"
 
 
 def codigo(nombre, n):
