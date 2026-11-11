@@ -189,4 +189,4 @@ def resumen(total=7):
     faltan = [i for i in range(total) if i not in _OK]
     print(f"Estudiante: {ESTUDIANTE} · checkpoints correctos: {len(_OK)}/{total}")
     print("Pendientes: " + (", ".join(map(str, faltan)) if faltan else "ninguno ✅"))
-    print("👉 Responda las preguntas 💬 y guarde: Archivo → Guardar una copia en GitHub (hasta las 22:30).")
+    print("👉 Responda las preguntas 💬 y guarde: Archivo → Guardar (Ctrl+S) (hasta las 22:30).")

@@ -6,7 +6,7 @@ Este es **su repositorio personal** del módulo. Aquí se guardan sus cuadernos 
 ## Cómo trabajar cada clase
 1. Abra el cuaderno de la clase con el enlace **«Abrir en Colab»** publicado en el aula virtual.
 2. Ejecute las demostraciones 🔵, complete los **✏️ Checkpoints** y responda las **💬 Preguntas**.
-3. Al final: **Archivo → Guardar una copia en GitHub** → este repositorio → ruta `talleres/claseN.ipynb`.
+3. Al final: **Archivo → Guardar (Ctrl+S)** → este repositorio → ruta `talleres/claseN.ipynb`.
 4. Vaya a la pestaña **Actions**: el círculo verde ✅ indica que se guardó y se verificó. Abra la ejecución para ver su avance.
 
 ## Evaluación
