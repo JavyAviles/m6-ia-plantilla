@@ -138,7 +138,7 @@ _OK = set()
 _K = "m6c"
 # valores esperados (codificados) y pistas por clase
 _E = "eyIxIjogWzEsIDAuMDg0NDQsIDAuMDAwNl0sICIyIjogWzEsIDAuNjc0NSwgMC4wMV0sICIzIjogWzEsIDM3LjAsIDAuMV0sICI0IjogWzEsIDAuODI4OTUsIDAuMDE1XSwgIjUiOiBbMSwgNjIuMTEyLCAwLjZdLCAiNiI6IFsxLCAwLjg2NTYsIDAuMDE1XX0="
-_PISTAS = {
+_PISTAS1 = {
     "1": "La tasa de fraude es el PROMEDIO de la columna 0/1 'fraude' del DataFrame LIMPIO.",
     "2": "¿Pusiste StandardScaler() antes del KNN dentro del Pipeline y n_neighbors=5? Se mide exactitud BALANCEADA con X_test.",
     "3": "k_mejor debe salir de la lista ks en la posición del MAYOR puntaje: ks[np.argmax(puntajes)].",
@@ -146,6 +146,33 @@ _PISTAS = {
     "5": "KernelRidge(kernel='rbf', alpha=1.0, gamma=0.1) sobre Xr escalado; el RMSE se mide en dólares.",
     "6": "Usa ccp_alpha=alpha_mejor, class_weight='balanced' y random_state=42; mide la exactitud BALANCEADA con X_test.",
 }
+_E2 = "eyIxIjogWzEsIDAuOTA0MTUsIDAuMDE1XSwgIjIiOiBbMSwgMC45MDM5NCwgMC4wM10sICIzIjogWzEsIDAuODkwMjYsIDAuMDNdLCAiNCI6IFsyLCBbIm1vbnRvIiwgImRpc3Bvc2l0aXZvX251ZXZvIl0sIDBdLCAiNSI6IFsxLCAwLjYyNDA5LCAwLjAwMV0sICI2IjogWzEsIDAuMDMyODk1LCAwLjAwMDVdfQ=="
+_PISTAS2 = {
+    "1": "Use RandomForestClassifier(n_estimators=200, oob_score=True, class_weight='balanced', random_state=42) y lea rf.oob_score_.",
+    "2": "XGBClassifier con learning_rate=0.05, max_depth=3, early_stopping_rounds=30; fit con eval_set=[(X_val, y_val)]. Mida exactitud BALANCEADA con X_test.",
+    "3": "LGBMClassifier(n_estimators=300, learning_rate=0.05, num_leaves=15, class_weight='balanced', random_state=42, verbose=-1).",
+    "4": "La variable con MAYOR promedio de |SHAP|: imp_shap.idxmax() (devuelve el nombre, entre comillas).",
+    "5": "P(F|A) = sens·p / (sens·p + (1−esp)·(1−p)) con p = tasa de fraude, sens = 0.90, esp = 0.95.",
+    "6": "Media posterior Beta: (a + fraudes) / (a + b + n) con a = 2 y b = 20.",
+}
+_CLASES = {1: (_E, _PISTAS1), 2: (_E2, _PISTAS2)}
+CLASE = 1
+X_COLS = ['edad', 'antiguedad_meses', 'ingreso_mensual', 'monto', 'hora',
+          'distancia_km', 'intentos_pin', 'dispositivo_nuevo']
+
+
+def cargar_pagoya_limpio(seed=2026):
+    """Descarga la API PagoYa y aplica la limpieza de la Clase 1 (duplicados, montos ≤ 0, edad nula)."""
+    eventos = descargar_todo(APIPagoYa(seed=seed))
+    df = pd.json_normalize(eventos)
+    df.columns = [c.split('.')[-1] for c in df.columns]
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df['hora'] = df['timestamp'].dt.hour
+    df['dispositivo_nuevo'] = df['dispositivo_nuevo'].astype(int)
+    df = df.drop_duplicates('evento_id').query('monto > 0').copy()
+    df['edad'] = df['edad'].fillna(df['edad'].median())
+    print(f"Datos limpios: {len(df)} transacciones · tasa de fraude {df['fraude'].mean():.2%}")
+    return df.reset_index(drop=True)
 
 
 def _codigo(n):
@@ -153,15 +180,18 @@ def _codigo(n):
     return f"K{n}-{h}"
 
 
-def registrar(nombre):
-    """Registra al estudiante (Checkpoint 0). Escriba 'Apellido Nombre'."""
-    global ESTUDIANTE
+def registrar(nombre, clase=1):
+    """Registra al estudiante (Checkpoint 0). Escriba 'Apellido Nombre' y el número de la clase."""
+    global ESTUDIANTE, CLASE
+    CLASE = int(clase)
+    _OK.clear()
     if not isinstance(nombre, str) or len(nombre.strip()) < 5 or "___" in nombre or "Apellido" in nombre:
         print("❌ Checkpoint 0: escriba su nombre real, por ejemplo 'Pérez Juan'.")
         return
     ESTUDIANTE = nombre.strip()
     _OK.add(0)
     print(f"Estudiante registrado: {ESTUDIANTE}")
+    print(f"Clase {CLASE}")
     print(f"✅ Checkpoint 0 correcto · código {_codigo(0)}")
 
 
@@ -170,8 +200,16 @@ def checkpoint(n, valor):
     if ESTUDIANTE is None:
         print("❌ Primero registre su nombre en el Checkpoint 0 (registrar('Apellido Nombre')).")
         return
-    esp = json.loads(base64.b64decode(_E))
+    enc, pistas = _CLASES[CLASE]
+    esp = json.loads(base64.b64decode(enc))
     tipo, val, tol = esp[str(n)]
+    if tipo == 2:                                   # respuesta de texto (nombre de variable)
+        validos = [str(v).lower() for v in (val if isinstance(val, list) else [val])]
+        if str(valor).strip().lower() in validos:
+            _OK.add(n); print(f"✅ Checkpoint {n} correcto · código {_codigo(n)}")
+        else:
+            print(f"❌ Checkpoint {n}: «{valor}» no coincide. Pista: {pistas[str(n)]}")
+        return
     try:
         v = float(valor)
     except Exception:
@@ -181,7 +219,7 @@ def checkpoint(n, valor):
         _OK.add(n)
         print(f"✅ Checkpoint {n} correcto · código {_codigo(n)}")
     else:
-        print(f"❌ Checkpoint {n}: su resultado ({v:.4f}) no coincide. Pista: {_PISTAS[str(n)]}")
+        print(f"❌ Checkpoint {n}: su resultado ({v:.4f}) no coincide. Pista: {pistas[str(n)]}")
 
 
 def resumen(total=7):
