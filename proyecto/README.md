@@ -11,4 +11,4 @@ Archivos obligatorios (el verificador los revisa):
 | `proyecto/ficha_modelo.json` | Ficha del modelo: métricas, fecha, semilla y versiones |
 | `proyecto/presentacion.pdf` | Diapositivas de la defensa |
 
-**Plazo: jueves 19 de noviembre de 2026, 18:00.** Se califica el último commit anterior a esa hora.
+**Plazo: miércoles 18 de noviembre de 2026, 23:59** (cuaderno, README y ficha). `presentacion.pdf`: hasta el jueves 19-nov, 18:00. Se califica el último commit anterior a cada hora.
