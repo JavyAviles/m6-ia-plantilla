@@ -146,7 +146,7 @@ _PISTAS1 = {
     "5": "KernelRidge(kernel='rbf', alpha=1.0, gamma=0.1) sobre Xr escalado; el RMSE se mide en dólares.",
     "6": "Usa ccp_alpha=alpha_mejor, class_weight='balanced' y random_state=42; mide la exactitud BALANCEADA con X_test.",
 }
-_E2 = "eyIxIjogWzEsIDAuOTA0MTUsIDAuMDE1XSwgIjIiOiBbMSwgMC45MDM5NCwgMC4wM10sICIzIjogWzEsIDAuODkwMjYsIDAuMDNdLCAiNCI6IFsyLCBbIm1vbnRvIiwgImRpc3Bvc2l0aXZvX251ZXZvIl0sIDBdLCAiNSI6IFsxLCAwLjYyNDA5LCAwLjAwMV0sICI2IjogWzEsIDAuMDMyODk1LCAwLjAwMDVdfQ=="
+_E2 = "eyIxIjogWzEsIDAuOTMsIDAuMDVdLCAiMiI6IFsxLCAwLjksIDAuMDVdLCAiMyI6IFsxLCAwLjg5LCAwLjA1XSwgIjQiOiBbMiwgWyJtb250byIsICJkaXNwb3NpdGl2b19udWV2byJdLCAwXSwgIjUiOiBbMSwgMC42MjQwOSwgMC4wMDFdLCAiNiI6IFsxLCAwLjAzMjg5NSwgMC4wMDA1XX0="
 _PISTAS2 = {
     "1": "Use RandomForestClassifier(n_estimators=200, oob_score=True, class_weight='balanced', random_state=42) y lea rf.oob_score_.",
     "2": "XGBClassifier con learning_rate=0.05, max_depth=3, early_stopping_rounds=30; fit con eval_set=[(X_val, y_val)]. Mida exactitud BALANCEADA con X_test.",
@@ -155,7 +155,17 @@ _PISTAS2 = {
     "5": "P(F|A) = sens·p / (sens·p + (1−esp)·(1−p)) con p = tasa de fraude, sens = 0.90, esp = 0.95.",
     "6": "Media posterior Beta: (a + fraudes) / (a + b + n) con a = 2 y b = 20.",
 }
-_CLASES = {1: (_E, _PISTAS1), 2: (_E2, _PISTAS2)}
+_E3 = "eyIxIjogWzEsIDAuMDMzMSwgMC4wMDNdLCAiMiI6IFsxLCAwLjE3NjY2LCAwLjAwMDVdLCAiMyI6IFsxLCAwLjk5OTUsIDAuMV0sICI0IjogWzEsIDAuMDcwNSwgMC4wMTVdLCAiNSI6IFszLCAwLCAwXSwgIjYiOiBbMSwgMC40MzUsIDAuMDNdfQ=="
+_PISTAS3 = {
+    "1": "Use pm.Beta('tasa', 2, 20) como prior y pm.Binomial('obs', n=n, p=tasa, observed=k); la media posterior es tr.posterior['tasa'].mean().",
+    "2": "inferencia.query(['Default'], evidence={'Mora': 1}).values[1] es la probabilidad de Default = 1.",
+    "3": "El coeficiente de dispositivo_nuevo es b[0]: tr_log.posterior['b'].values[..., 0].mean().",
+    "4": "Tasa de Imbabura = sigmoide del intercepto de esa provincia; promedie sobre todas las muestras.",
+    "5": "Use un nombre propio para su app (no 'PagoYa') y dos colores hex distintos, p. ej. '#7B2CBF', que no sean los de la plantilla.",
+    "6": "Use prob_fraude(transaccion) con la transacción dada y tome el promedio: probs.mean().",
+}
+_CLASES = {1: (_E, _PISTAS1), 2: (_E2, _PISTAS2), 3: (_E3, _PISTAS3)}
+_COLORES_PROHIBIDOS = {'#7B2CBF', '#1B2A47', '#0B5C7E', '#E0A526', '#D7262C', '#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF'}
 CLASE = 1
 X_COLS = ['edad', 'antiguedad_meses', 'ingreso_mensual', 'monto', 'hora',
           'distancia_km', 'intentos_pin', 'dispositivo_nuevo']
@@ -203,6 +213,21 @@ def checkpoint(n, valor):
     enc, pistas = _CLASES[CLASE]
     esp = json.loads(base64.b64decode(enc))
     tipo, val, tol = esp[str(n)]
+    if tipo == 3:                                   # personalización de la app: (nombre, color1, color2)
+        import re as _re
+        try:
+            app, c1, c2 = valor
+        except Exception:
+            print(f"❌ Checkpoint {n}: entregue (nombre_app, color_principal, color_alerta)."); return
+        hexok = lambda c: isinstance(c, str) and _re.fullmatch(r"#[0-9A-Fa-f]{6}", c) is not None
+        if (not isinstance(app, str) or len(app.strip()) < 3 or '___' in app or app.strip().lower() == 'pagoya'
+                or not hexok(c1) or not hexok(c2) or c1.upper() == c2.upper()
+                or c1.upper() in _COLORES_PROHIBIDOS or c2.upper() in _COLORES_PROHIBIDOS):
+            print(f"❌ Checkpoint {n}: personalización no válida. Pista: {pistas[str(n)]}"); return
+        _OK.add(n)
+        print(f"Huella UI: {app.strip()} · {c1.upper()} · {c2.upper()}")
+        print(f"✅ Checkpoint {n} correcto · código {_codigo(n)}")
+        return
     if tipo == 2:                                   # respuesta de texto (nombre de variable)
         validos = [str(v).lower() for v in (val if isinstance(val, list) else [val])]
         if str(valor).strip().lower() in validos:
@@ -220,6 +245,204 @@ def checkpoint(n, valor):
         print(f"✅ Checkpoint {n} correcto · código {_codigo(n)}")
     else:
         print(f"❌ Checkpoint {n}: su resultado ({v:.4f}) no coincide. Pista: {pistas[str(n)]}")
+
+
+def _rhat(x):
+    """R-hat dividido (Gelman-Rubin) de una matriz cadenas × muestras."""
+    c, n = x.shape; h = n // 2; x = np.concatenate([x[:, :h], x[:, h:2 * h]]); m, n = x.shape
+    B = n * x.mean(1).var(ddof=1); W = x.var(1, ddof=1).mean()
+    return float(np.sqrt(((n - 1) / n * W + B / n) / W))
+
+
+def _ess(x):
+    """Tamaño efectivo de muestra (autocorrelación con pares positivos de Geyer)."""
+    m, n = x.shape; xc = x - x.mean(1, keepdims=True)
+    acf = np.mean([np.correlate(r, r, 'full')[n - 1:] / (r.var() * n) for r in xc], axis=0)
+    s, k = 0.0, 1
+    while k + 1 < n:
+        par = acf[k] + acf[k + 1]
+        if par < 0: break
+        s += par; k += 2
+    return float(m * n / (1 + 2 * s))
+
+
+def diagnostico(traza, variables):
+    """Tabla de diagnóstico MCMC: media, desviación, intervalo creíble 94 %, R-hat y ESS."""
+    filas = {}
+    for v in variables:
+        x = np.asarray(traza.posterior[v].values)
+        x = x.reshape(x.shape[0], x.shape[1], -1)
+        for j in range(x.shape[2]):
+            xs = x[:, :, j]; nom = v if x.shape[2] == 1 else f"{v}[{j}]"
+            filas[nom] = {'media': xs.mean(), 'desv': xs.std(), 'ic_3%': np.percentile(xs, 3), 'ic_97%': np.percentile(xs, 97),
+                          'r_hat': _rhat(xs), 'ess': _ess(xs)}
+    return pd.DataFrame(filas).T.round(4)
+
+
+def semilla_personal(nombre):
+    """Semilla única derivada del nombre del estudiante (datos personalizados del deber)."""
+    return int(hashlib.sha256(nombre.strip().lower().encode()).hexdigest()[:8], 16) % 1_000_000
+
+
+def datos_deber(nombre):
+    """Datos PagoYa personalizados para el deber: cada estudiante obtiene transacciones distintas."""
+    if not isinstance(nombre, str) or len(nombre.strip()) < 5 or '___' in nombre:
+        raise ValueError("Escriba su nombre real como 'Apellido Nombre'.")
+    sem = semilla_personal(nombre)
+    print(f"Huella de datos: {nombre.strip()} · semilla {sem}")
+    df = cargar_pagoya_limpio(seed=sem)
+    df['ratio'] = df['monto'] / df['ingreso_mensual']
+    return df
+
+
+def _semaforo(p):
+    return ('✅ APROBADA', '#2E8B57') if p < 0.2 else (('⚠️ REVISAR', '#E0A526') if p < 0.5 else ('⛔ BLOQUEADA', '#D7262C'))
+
+
+def pantalla_app(nombre_app, color_principal, color_alerta, transaccion, probs):
+    """Dibuja la 'pantalla del celular' de la app del estudiante con el resultado de una transacción."""
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import FancyBboxPatch
+    p = float(np.mean(probs)); lo, hi = np.percentile(probs, [5, 95]); txt, col = _semaforo(p)
+    fig, ax = plt.subplots(figsize=(3.4, 6.2)); ax.set_xlim(0, 1); ax.set_ylim(0, 1.8); ax.axis('off')
+    ax.add_patch(FancyBboxPatch((0.02, 0.02), 0.96, 1.76, boxstyle='round,pad=0.02,rounding_size=0.08', fc='#F7F7F9', ec='#333', lw=3))
+    ax.add_patch(FancyBboxPatch((0.06, 1.45), 0.88, 0.25, boxstyle='round,pad=0.01,rounding_size=0.04', fc=color_principal, ec='none'))
+    ax.text(0.5, 1.575, nombre_app, ha='center', va='center', color='white', fontsize=15, weight='bold')
+    ax.text(0.5, 1.33, f"Pago de USD {transaccion.get('monto', 0):,.2f}", ha='center', fontsize=12, weight='bold', color='#222')
+    lineas = [f"Dispositivo nuevo: {'sí' if transaccion.get('dispositivo_nuevo') else 'no'}",
+              f"Distancia: {transaccion.get('distancia_km', 0):.0f} km", f"Intentos de PIN: {transaccion.get('intentos_pin', 1)}"]
+    for i, l in enumerate(lineas): ax.text(0.12, 1.18 - i * 0.09, l, fontsize=10, color='#444')
+    ax.add_patch(FancyBboxPatch((0.1, 0.55), 0.8, 0.3, boxstyle='round,pad=0.01,rounding_size=0.04', fc=col, ec='none'))
+    ax.text(0.5, 0.70, txt, ha='center', va='center', color='white', fontsize=14, weight='bold')
+    ax.text(0.5, 0.42, f"Riesgo de fraude: {p:.0%}", ha='center', fontsize=12, color=color_alerta, weight='bold')
+    ax.text(0.5, 0.33, f"Intervalo creíble 90 %: {lo:.0%} – {hi:.0%}", ha='center', fontsize=9.5, color='#444')
+    ax.add_patch(FancyBboxPatch((0.25, 0.1), 0.5, 0.12, boxstyle='round,pad=0.01,rounding_size=0.05', fc=color_alerta, ec='none'))
+    ax.text(0.5, 0.16, 'Confirmar', ha='center', va='center', color='white', fontsize=11, weight='bold')
+    plt.show()
+
+
+def simulador(prob_fraude, nombre_app, color_principal, color_alerta):
+    """Simulador interactivo (ipywidgets): mueva los controles y vea el riesgo de fraude con su incertidumbre."""
+    import ipywidgets as w
+    from IPython.display import display, HTML
+    monto = w.FloatSlider(value=80, min=1, max=1500, step=1, description='Monto USD')
+    ingreso = w.FloatSlider(value=900, min=200, max=4000, step=10, description='Ingreso USD')
+    dist = w.FloatSlider(value=3, min=0, max=80, step=1, description='Distancia km')
+    nuevo = w.Checkbox(value=False, description='Dispositivo nuevo')
+    pin = w.IntSlider(value=1, min=1, max=3, description='Intentos PIN')
+    salida = w.Output()
+    def actualizar(*_):
+        t = {'dispositivo_nuevo': int(nuevo.value), 'distancia_km': dist.value,
+             'ratio': monto.value / ingreso.value, 'intentos_pin': pin.value}
+        pr = prob_fraude(t); p = float(np.mean(pr)); lo, hi = np.percentile(pr, [5, 95]); txt, col = _semaforo(p)
+        with salida:
+            salida.clear_output()
+            display(HTML(f"""<div style="font-family:Arial;width:330px;border:3px solid #333;border-radius:22px;padding:14px;background:#F7F7F9">
+<div style="background:{color_principal};color:white;border-radius:12px;padding:10px;text-align:center;font-size:20px;font-weight:bold">{nombre_app}</div>
+<p style="font-size:16px;margin:12px 4px"><b>Pago de USD {monto.value:,.2f}</b></p>
+<div style="background:{col};color:white;border-radius:10px;padding:12px;text-align:center;font-size:18px;font-weight:bold">{txt}</div>
+<p style="color:{color_alerta};font-size:16px;font-weight:bold;text-align:center">Riesgo de fraude: {p:.0%}</p>
+<p style="text-align:center;font-size:13px">Intervalo creíble 90 %: {lo:.0%} – {hi:.0%}</p></div>"""))
+    for c in (monto, ingreso, dist, nuevo, pin): c.observe(actualizar, names='value')
+    actualizar(); display(w.HBox([w.VBox([monto, ingreso, dist, nuevo, pin]), salida]))
+
+
+# ---------------------------------------------------------------------------
+# 4. Proyecto final
+# ---------------------------------------------------------------------------
+_EMPLEO = ['dependiente', 'independiente', 'informal']
+
+
+def _generar_creditos(n=2500, seed=2026):
+    """Solicitudes de microcrédito de usuarios de PagoYa (simuladas). Objetivo: default (1 = impago)."""
+    rng = np.random.default_rng(seed)
+    edad = rng.integers(20, 66, n)
+    empleo = rng.choice(_EMPLEO, n, p=[.5, .3, .2])
+    ingreso = np.round(np.exp(rng.normal(6.8, .45, n)) * np.where(empleo == 'dependiente', 1.1, 0.95), 2)
+    antig = rng.integers(1, 61, n)
+    tx_mes = rng.poisson(14, n) + 1
+    plazo = rng.choice([6, 12, 24], n, p=[.3, .5, .2])
+    monto = np.round(np.clip(ingreso * rng.uniform(0.3, 2.5, n), 100, 5000), -1)
+    cuota = np.round(monto * (1 + 0.015 * plazo) / plazo, 2)
+    ratio_cuota = cuota / ingreso
+    mora_previa = (rng.random(n) < .12).astype(int)
+    z = (-3.0 + 2.2 * (ratio_cuota > .35) + 1.6 * mora_previa + 0.9 * (empleo == 'informal') + 0.8 * (antig < 6)
+         - 0.03 * (tx_mes - 14) + 1.2 * mora_previa * (empleo == 'informal') - 0.012 * (edad - 40) + rng.normal(0, .3, n))
+    default = (rng.random(n) < 1 / (1 + np.exp(-z))).astype(int)
+    return pd.DataFrame({'solicitud_id': [f'CR-{i:05d}' for i in range(n)], 'edad': edad, 'tipo_empleo': empleo,
+                         'ingreso_mensual': ingreso, 'antiguedad_meses': antig, 'transacciones_mes': tx_mes,
+                         'monto_credito': monto, 'plazo_meses': plazo, 'cuota': cuota, 'ratio_cuota': np.round(ratio_cuota, 4),
+                         'mora_previa': mora_previa, 'default': default})
+
+
+def _perfiles_usuarios(df):
+    """Agrega las transacciones por usuario (para segmentación y anomalías)."""
+    d = df.assign(noche=(df['hora'] <= 5).astype(int))
+    g = d.groupby('id').agg(edad=('edad', 'first'), ingreso_mensual=('ingreso_mensual', 'first'),
+                            antiguedad_meses=('antiguedad_meses', 'first'), provincia=('provincia', 'first'),
+                            n_transacciones=('evento_id', 'count'), monto_medio=('monto', 'mean'), monto_max=('monto', 'max'),
+                            pct_noche=('noche', 'mean'), pct_dispositivo_nuevo=('dispositivo_nuevo', 'mean'),
+                            distancia_media=('distancia_km', 'mean'), intentos_medios=('intentos_pin', 'mean'),
+                            fraudes=('fraude', 'sum'))
+    return g.round(4).reset_index().rename(columns={'id': 'usuario_id'})
+
+
+def datos_proyecto(grupo, problema):
+    """Datos personalizados del proyecto. problema: 'fraude', 'credito' o 'segmentacion'."""
+    if not isinstance(grupo, str) or len(grupo.strip()) < 3 or '___' in grupo:
+        raise ValueError("Escriba el nombre del grupo, por ejemplo 'Grupo 3'.")
+    sem = semilla_personal('proyecto|' + grupo)
+    print(f"Huella de datos del proyecto: {grupo.strip()} · {problema} · semilla {sem}")
+    if problema == 'fraude':
+        df = cargar_pagoya_limpio(seed=sem); df['ratio'] = df['monto'] / df['ingreso_mensual']; return df
+    if problema == 'credito':
+        df = _generar_creditos(seed=sem)
+        print(f"Solicitudes de microcrédito: {len(df)} · tasa de default {df['default'].mean():.2%}"); return df
+    if problema == 'segmentacion':
+        df = _perfiles_usuarios(cargar_pagoya_limpio(seed=sem))
+        print(f"Perfiles de usuario: {len(df)}"); return df
+    raise ValueError("problema debe ser 'fraude', 'credito' o 'segmentacion'.")
+
+
+def pantalla_resultado(nombre_app, color_principal, color_alerta, titulo, lineas, probs=None, etiqueta=None):
+    """Pantalla genérica de la app (proyecto): título, líneas de detalle y, si hay, riesgo con intervalo."""
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import FancyBboxPatch
+    fig, ax = plt.subplots(figsize=(3.4, 6.2)); ax.set_xlim(0, 1); ax.set_ylim(0, 1.8); ax.axis('off')
+    ax.add_patch(FancyBboxPatch((0.02, 0.02), 0.96, 1.76, boxstyle='round,pad=0.02,rounding_size=0.08', fc='#F7F7F9', ec='#333', lw=3))
+    ax.add_patch(FancyBboxPatch((0.06, 1.45), 0.88, 0.25, boxstyle='round,pad=0.01,rounding_size=0.04', fc=color_principal, ec='none'))
+    ax.text(0.5, 1.575, nombre_app, ha='center', va='center', color='white', fontsize=15, weight='bold')
+    ax.text(0.5, 1.33, titulo, ha='center', fontsize=12, weight='bold', color='#222')
+    for i, l in enumerate(lineas[:5]): ax.text(0.1, 1.18 - i * 0.09, l, fontsize=9.5, color='#444')
+    if probs is not None:
+        p = float(np.mean(probs)); lo, hi = np.percentile(probs, [5, 95]); txt, col = _semaforo(p)
+        ax.add_patch(FancyBboxPatch((0.1, 0.55), 0.8, 0.25, boxstyle='round,pad=0.01,rounding_size=0.04', fc=col, ec='none'))
+        ax.text(0.5, 0.675, etiqueta or txt, ha='center', va='center', color='white', fontsize=13, weight='bold')
+        ax.text(0.5, 0.42, f"Riesgo: {p:.0%}", ha='center', fontsize=12, color=color_alerta, weight='bold')
+        ax.text(0.5, 0.33, f"Intervalo 90 %: {lo:.0%} – {hi:.0%}", ha='center', fontsize=9.5, color='#444')
+    elif etiqueta:
+        ax.add_patch(FancyBboxPatch((0.1, 0.55), 0.8, 0.25, boxstyle='round,pad=0.01,rounding_size=0.04', fc=color_alerta, ec='none'))
+        ax.text(0.5, 0.675, etiqueta, ha='center', va='center', color='white', fontsize=13, weight='bold')
+    plt.show()
+
+
+def ficha_modelo(grupo, problema, modelo, metricas, hiperparametros, semilla=42, archivo='ficha_modelo.json'):
+    """Genera ficha_modelo.json (para subir a la carpeta proyecto/ del repositorio) y la descarga en Colab."""
+    import platform, datetime, sklearn
+    ficha = {'grupo': grupo, 'problema': problema, 'modelo': modelo, 'metricas': metricas,
+             'hiperparametros': hiperparametros, 'semilla': semilla,
+             'semilla_datos': semilla_personal('proyecto|' + grupo),
+             'fecha': datetime.datetime.now().strftime('%Y-%m-%d %H:%M'),
+             'versiones': {'python': platform.python_version(), 'numpy': np.__version__, 'pandas': pd.__version__,
+                           'scikit-learn': sklearn.__version__}}
+    with open(archivo, 'w', encoding='utf-8') as f:
+        json.dump(ficha, f, ensure_ascii=False, indent=2, default=str)
+    print(json.dumps(ficha, ensure_ascii=False, indent=2, default=str))
+    try:
+        from google.colab import files; files.download(archivo)
+    except Exception:
+        print(f"Archivo guardado: {archivo}")
+    return ficha
 
 
 def resumen(total=7):
