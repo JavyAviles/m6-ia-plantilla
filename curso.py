@@ -155,7 +155,7 @@ _PISTAS2 = {
     "5": "P(F|A) = sens·p / (sens·p + (1−esp)·(1−p)) con p = tasa de fraude, sens = 0.90, esp = 0.95.",
     "6": "Media posterior Beta: (a + fraudes) / (a + b + n) con a = 2 y b = 20.",
 }
-_E3 = "eyIxIjogWzEsIDAuMDMzMSwgMC4wMDNdLCAiMiI6IFsxLCAwLjE3NjY2LCAwLjAwMDVdLCAiMyI6IFsxLCAwLjk5OTUsIDAuMV0sICI0IjogWzEsIDAuMDcwNSwgMC4wMTVdLCAiNSI6IFszLCAwLCAwXSwgIjYiOiBbMSwgMC40MzUsIDAuMDNdfQ=="
+_E3 = "eyIxIjogWzEsIDAuMDMzMSwgMC4wMDVdLCAiMiI6IFsxLCAwLjE3NjY2LCAwLjAwMDVdLCAiMyI6IFsxLCAwLjk5OTUsIDAuMTVdLCAiNCI6IFsxLCAwLjA3MDUsIDAuMDJdLCAiNSI6IFszLCAwLCAwXSwgIjYiOiBbMSwgMC40MzUsIDAuMDVdfQ=="
 _PISTAS3 = {
     "1": "Use pm.Beta('tasa', 2, 20) como prior y pm.Binomial('obs', n=n, p=tasa, observed=k); la media posterior es tr.posterior['tasa'].mean().",
     "2": "inferencia.query(['Default'], evidence={'Mora': 1}).values[1] es la probabilidad de Default = 1.",
@@ -450,4 +450,4 @@ def resumen(total=7):
     faltan = [i for i in range(total) if i not in _OK]
     print(f"Estudiante: {ESTUDIANTE} · checkpoints correctos: {len(_OK)}/{total}")
     print("Pendientes: " + (", ".join(map(str, faltan)) if faltan else "ninguno ✅"))
-    print("👉 Responda las preguntas 💬 y guarde: Archivo → Guardar (Ctrl+S) (hasta las 22:30).")
+    print("👉 Responda las preguntas 💬 y guarde: Archivo → Guardar (Ctrl+S) → su repositorio (hasta las 12:00 del día siguiente sin descuento).")
