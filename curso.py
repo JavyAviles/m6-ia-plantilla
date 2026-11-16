@@ -164,7 +164,16 @@ _PISTAS3 = {
     "5": "Use un nombre propio para su app (no 'PagoYa') y dos colores hex distintos, p. ej. '#7B2CBF', que no sean los de la plantilla.",
     "6": "Use prob_fraude(transaccion) con la transacción dada y tome el promedio: probs.mean().",
 }
-_CLASES = {1: (_E, _PISTAS1), 2: (_E2, _PISTAS2), 3: (_E3, _PISTAS3)}
+_E4 = "eyIxIjogWzEsIDAuMjk3MywgMC4wMDJdLCAiMiI6IFsxLCAtMC41Mzc5LCAwLjAwM10sICIzIjogWzEsIDMwNSwgMC4xXSwgIjQiOiBbMSwgMC45NSwgMC4wNV0sICI1IjogWzQsIDcwLCAwXSwgIjYiOiBbMSwgMC4zMzIsIDAuMDFdfQ=="
+_PISTAS4 = {
+    "1": "z = w · x + b (producto punto) y luego sigmoide(z) = 1 / (1 + e^(−z)). Use np.dot(w, x) + b.",
+    "2": "Con tf.GradientTape: cinta.gradient(perdida, w). El valor esperado es (p − y) · x.",
+    "3": "Parámetros de una capa densa = entradas × neuronas + neuronas (sesgos). Sume las tres capas o use modelo.count_params().",
+    "4": "Calcule roc_auc_score(y_test, red.predict(X_test_esc).ravel()). Si sale muy bajo, revise que usó los datos ESCALADOS.",
+    "5": "La cobertura debe ser ≥ 70 %. Complete la prueba de costo_decision (los ___) y vuelva a ejecutar pytest.",
+    "6": "Use curso.psi(df_train['monto'], df_nuevo['monto']) o la función psi de pagoya_utils con 10 cortes por cuantiles del entrenamiento.",
+}
+_CLASES = {1: (_E, _PISTAS1), 2: (_E2, _PISTAS2), 3: (_E3, _PISTAS3), 4: (_E4, _PISTAS4)}
 _COLORES_PROHIBIDOS = {'#7B2CBF', '#1B2A47', '#0B5C7E', '#E0A526', '#D7262C', '#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF'}
 CLASE = 1
 X_COLS = ['edad', 'antiguedad_meses', 'ingreso_mensual', 'monto', 'hora',
@@ -227,6 +236,16 @@ def checkpoint(n, valor):
         _OK.add(n)
         print(f"Huella UI: {app.strip()} · {c1.upper()} · {c2.upper()}")
         print(f"✅ Checkpoint {n} correcto · código {_codigo(n)}")
+        return
+    if tipo == 4:                                   # umbral mínimo (ej. cobertura de pruebas ≥ 70 %)
+        try:
+            v = float(valor)
+        except Exception:
+            print(f"❌ Checkpoint {n}: el resultado no es un número."); return
+        if v >= val:
+            _OK.add(n); print(f"Valor: {v:.1f} ≥ {val}"); print(f"✅ Checkpoint {n} correcto · código {_codigo(n)}")
+        else:
+            print(f"❌ Checkpoint {n}: {v:.1f} es menor que {val}. Pista: {pistas[str(n)]}")
         return
     if tipo == 2:                                   # respuesta de texto (nombre de variable)
         validos = [str(v).lower() for v in (val if isinstance(val, list) else [val])]
@@ -443,6 +462,29 @@ def ficha_modelo(grupo, problema, modelo, metricas, hiperparametros, semilla=42,
     except Exception:
         print(f"Archivo guardado: {archivo}")
     return ficha
+
+
+# ---------------------------------------------------------------------------
+# 5. Clase 4: datos de un "nuevo mes" (deriva) y PSI
+# ---------------------------------------------------------------------------
+def datos_nuevo_mes(seed=2027, factor_monto=1.8):
+    """Transacciones de un mes posterior con deriva simulada: los montos suben un 80 %."""
+    df = cargar_pagoya_limpio(seed=seed)
+    df['monto'] = (df['monto'] * factor_monto).round(2)
+    df['ratio'] = df['monto'] / df['ingreso_mensual']
+    print(f"Nuevo mes simulado: {len(df)} transacciones (montos × {factor_monto})")
+    return df
+
+
+def psi(esperado, actual, cortes=10):
+    """Population Stability Index: < 0,10 estable · 0,10–0,25 moderado · > 0,25 deriva significativa."""
+    esperado, actual = np.asarray(esperado, float), np.asarray(actual, float)
+    bordes = np.unique(np.quantile(esperado, np.linspace(0, 1, cortes + 1)))
+    bordes[0], bordes[-1] = -np.inf, np.inf
+    pe = np.histogram(esperado, bordes)[0] / len(esperado)
+    pa = np.histogram(actual, bordes)[0] / len(actual)
+    pe, pa = np.clip(pe, 1e-6, None), np.clip(pa, 1e-6, None)
+    return float(np.sum((pa - pe) * np.log(pa / pe)))
 
 
 def resumen(total=7):
