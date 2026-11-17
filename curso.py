@@ -173,7 +173,16 @@ _PISTAS4 = {
     "5": "La cobertura debe ser ≥ 70 %. Complete la prueba de costo_decision (los ___) y vuelva a ejecutar pytest.",
     "6": "Use curso.psi(df_train['monto'], df_nuevo['monto']) o la función psi de pagoya_utils con 10 cortes por cuantiles del entrenamiento.",
 }
-_CLASES = {1: (_E, _PISTAS1), 2: (_E2, _PISTAS2), 3: (_E3, _PISTAS3), 4: (_E4, _PISTAS4)}
+_E5 = "eyIxIjogWzEsIDUzLCAwLjFdLCAiMiI6IFs0LCAwLjksIDBdLCAiMyI6IFs0LCAwLjgsIDBdLCAiNCI6IFsxLCAwLjczMzMsIDAuMDddLCAiNSI6IFsxLCAwLjE5LCAwLjAxXSwgIjYiOiBbMSwgMC40NjEsIDAuMDA1XX0="
+_PISTAS5 = {
+    "1": "Iteraciones por época = ⌈n / batch⌉: use math.ceil(len(X_tr_esc) / 32).",
+    "2": "Complete L2 = 1e-3 y Dropout = 0.3, y calcule el AUC con X_test_esc (datos ESCALADOS). Debe ser ≥ 0,90.",
+    "3": "Use contamination=0.03 y compare iso.predict(X_perf) == -1 (−1 significa anómalo).",
+    "4": "Use LocalOutlierFactor(n_neighbors=20, contamination=0.03) y fit_predict(X_perf) == -1.",
+    "5": "KMeans(n_clusters=4, n_init=10, random_state=42) sobre X_seg y silhouette_score(X_seg, km4.labels_).",
+    "6": "PCA(n_components=2).fit(X_seg) y sume explained_variance_ratio_.",
+}
+_CLASES = {1: (_E, _PISTAS1), 2: (_E2, _PISTAS2), 3: (_E3, _PISTAS3), 4: (_E4, _PISTAS4), 5: (_E5, _PISTAS5)}
 _COLORES_PROHIBIDOS = {'#7B2CBF', '#1B2A47', '#0B5C7E', '#E0A526', '#D7262C', '#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF'}
 CLASE = 1
 X_COLS = ['edad', 'antiguedad_meses', 'ingreso_mensual', 'monto', 'hora',
@@ -243,9 +252,9 @@ def checkpoint(n, valor):
         except Exception:
             print(f"❌ Checkpoint {n}: el resultado no es un número."); return
         if v >= val:
-            _OK.add(n); print(f"Valor: {v:.1f} ≥ {val}"); print(f"✅ Checkpoint {n} correcto · código {_codigo(n)}")
+            _OK.add(n); print(f"Valor: {v:.4g} ≥ {val}"); print(f"✅ Checkpoint {n} correcto · código {_codigo(n)}")
         else:
-            print(f"❌ Checkpoint {n}: {v:.1f} es menor que {val}. Pista: {pistas[str(n)]}")
+            print(f"❌ Checkpoint {n}: {v:.4g} es menor que {val}. Pista: {pistas[str(n)]}")
         return
     if tipo == 2:                                   # respuesta de texto (nombre de variable)
         validos = [str(v).lower() for v in (val if isinstance(val, list) else [val])]
@@ -486,6 +495,29 @@ def psi(esperado, actual, cortes=10):
     pe, pa = np.clip(pe, 1e-6, None), np.clip(pa, 1e-6, None)
     return float(np.sum((pa - pe) * np.log(pa / pe)))
 
+
+
+# ---------------------------------------------------------------------------
+# 6. Clase 5: perfiles de usuario con anomalías sembradas
+# ---------------------------------------------------------------------------
+def perfiles_clase5(n_sembradas=15, seed=7):
+    """Perfiles de usuario de PagoYa (una fila por usuario) con n_sembradas cuentas anómalas
+    conocidas (columna 'sembrada' = 1) para evaluar los detectores de anomalías."""
+    p = _perfiles_usuarios(cargar_pagoya_limpio()).assign(sembrada=0)
+    rng = np.random.default_rng(seed)
+    x = p.sample(n_sembradas, random_state=seed).copy()
+    x['usuario_id'] = [f"X{i:03d}" for i in range(n_sembradas)]
+    x['n_transacciones'] = rng.integers(8, 16, n_sembradas)
+    x['monto_medio'] = np.round(x['ingreso_mensual'] * rng.uniform(0.45, 0.9, n_sembradas), 2)
+    x['monto_max'] = np.round(x['monto_medio'] * rng.uniform(1.5, 2.5, n_sembradas), 2)
+    x['pct_noche'] = np.round(rng.uniform(0.5, 1.0, n_sembradas), 4)
+    x['pct_dispositivo_nuevo'] = np.round(rng.uniform(0.5, 1.0, n_sembradas), 4)
+    x['distancia_media'] = np.round(rng.uniform(15, 35, n_sembradas), 4)
+    x['intentos_medios'] = np.round(rng.uniform(2.0, 3.0, n_sembradas), 4)
+    x['sembrada'] = 1
+    out = pd.concat([p, x], ignore_index=True)
+    print(f"Perfiles: {len(out)} usuarios · {n_sembradas} anomalías sembradas (solo para evaluar)")
+    return out
 
 def resumen(total=7):
     """Muestra el avance de la clase y recuerda guardar en GitHub."""
