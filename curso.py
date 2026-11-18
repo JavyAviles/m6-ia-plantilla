@@ -182,7 +182,16 @@ _PISTAS5 = {
     "5": "KMeans(n_clusters=4, n_init=10, random_state=42) sobre X_seg y silhouette_score(X_seg, km4.labels_).",
     "6": "PCA(n_components=2).fit(X_seg) y sume explained_variance_ratio_.",
 }
-_CLASES = {1: (_E, _PISTAS1), 2: (_E2, _PISTAS2), 3: (_E3, _PISTAS3), 4: (_E4, _PISTAS4), 5: (_E5, _PISTAS5)}
+_E6 = "eyIxIjogWzEsIDEwNjgsIDAuMV0sICIyIjogWzEsIDIzNi43NywgMC41XSwgIjMiOiBbMSwgMC40NDc2LCAwLjAxXSwgIjQiOiBbMSwgMC45NzcsIDAuMDJdLCAiNSI6IFsyLCBbIlBPTC0wNCJdLCAwXSwgIjYiOiBbMSwgNCwgMC4xXX0="
+_PISTAS6 = {
+    "1": "Cada ventana toma valores[i:i + W] y el objetivo es valores[i + W]. Con 1096 días y W = 28 salen 1096 − 28 ventanas.",
+    "2": "El ingenuo estacional usa el valor de 7 días antes: y[-H - 7:-7] (90 valores alineados con la prueba).",
+    "3": "KS = máx(tpr − fpr) con roc_curve(yc_pru, p_log).",
+    "4": "Use el umbral 0.15 y divida la tasa de aprobación de 'F' entre la de 'M'.",
+    "5": "Llame a buscar(pregunta) y tome resultados['id'].iloc[0].",
+    "6": "El método para ejecutar una herramienta es 'tools/call' y el nombre es 'consultar_perfil'.",
+}
+_CLASES = {1: (_E, _PISTAS1), 2: (_E2, _PISTAS2), 3: (_E3, _PISTAS3), 4: (_E4, _PISTAS4), 5: (_E5, _PISTAS5), 6: (_E6, _PISTAS6)}
 _COLORES_PROHIBIDOS = {'#7B2CBF', '#1B2A47', '#0B5C7E', '#E0A526', '#D7262C', '#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF'}
 CLASE = 1
 X_COLS = ['edad', 'antiguedad_meses', 'ingreso_mensual', 'monto', 'hora',
@@ -518,6 +527,83 @@ def perfiles_clase5(n_sembradas=15, seed=7):
     out = pd.concat([p, x], ignore_index=True)
     print(f"Perfiles: {len(out)} usuarios · {n_sembradas} anomalías sembradas (solo para evaluar)")
     return out
+
+
+# ---------------------------------------------------------------------------
+# 7. Clase 6: serie diaria, créditos con atributo sensible, políticas (RAG) y servidor MCP mínimo
+# ---------------------------------------------------------------------------
+def serie_transacciones(seed=2026, dias=1096):
+    """Número diario de transacciones de PagoYa (simulado, 3 años): tendencia, semana, año, quincena y diciembre."""
+    rng = np.random.default_rng(seed)
+    f = pd.date_range('2023-11-01', periods=dias, freq='D'); t = np.arange(dias)
+    semana = np.array([0.95, 0.97, 1.0, 1.02, 1.18, 1.25, 0.80])[f.dayofweek]
+    anual = 1 + 0.08 * np.sin(2 * np.pi * (f.dayofyear - 80) / 365.25)
+    diciembre = np.where((f.month == 12) & (f.day >= 10), 1.25, 1.0)
+    quincena = np.where(np.isin(f.day, [1, 15, 30]), 1.12, 1.0)
+    y = 1800 * np.exp(0.0006 * t) * semana * anual * diciembre * quincena * np.exp(rng.normal(0, 0.05, dias))
+    print(f"Serie diaria: {dias} días ({f[0].date()} a {f[-1].date()})")
+    return pd.DataFrame({'fecha': f, 'transacciones': np.round(y).astype(int)})
+
+
+def creditos_clase6(seed=2026, n=4000):
+    """Solicitudes de microcrédito con la variable sensible 'sexo' (NO se usa para entrenar; solo para auditar equidad)."""
+    df = _generar_creditos(n=n, seed=seed)
+    rng = np.random.default_rng(seed + 1)
+    li = np.log(df['ingreso_mensual']); zi = (li - li.mean()) / li.std()
+    df.insert(2, 'sexo', np.where(rng.random(len(df)) < 1 / (1 + np.exp(1.1 * zi)), 'F', 'M'))
+    print(f"Solicitudes: {len(df)} · tasa de default {df['default'].mean():.2%}")
+    return df
+
+
+POLITICAS = [
+    {'id': 'POL-01', 'titulo': 'Límites de transacción', 'texto': 'El límite diario de transferencias es de 1 500 dólares y el de pagos en comercios es de 3 000 dólares. Los límites se pueden subir hasta el doble con verificación de identidad en la agencia.'},
+    {'id': 'POL-02', 'titulo': 'Bloqueo preventivo por fraude', 'texto': 'Si el sistema de riesgo detecta una transacción sospechosa, la bloquea y envía un código al celular registrado. El cliente confirma o rechaza la operación en un máximo de 10 minutos; si no responde, la transacción se cancela.'},
+    {'id': 'POL-03', 'titulo': 'Requisitos del microcrédito', 'texto': 'El microcrédito requiere al menos seis meses de antigüedad en la app, ingresos verificables y una cuota que no supere el 35 por ciento del ingreso mensual. Los plazos disponibles son de 6, 12 y 24 meses.'},
+    {'id': 'POL-04', 'titulo': 'Reclamos por transacciones no reconocidas', 'texto': 'El cliente tiene 30 días desde la fecha de la transacción para presentar un reclamo por una transacción no reconocida. La respuesta se entrega en un máximo de 15 días hábiles y, si procede, el dinero se acredita en la cuenta.'},
+    {'id': 'POL-05', 'titulo': 'Protección de datos personales', 'texto': 'PagoYa trata los datos personales conforme a la Ley Orgánica de Protección de Datos Personales. El cliente puede solicitar acceso, rectificación o eliminación de sus datos desde la sección Privacidad de la app.'},
+    {'id': 'POL-06', 'titulo': 'Comisiones', 'texto': 'Las transferencias entre usuarios de PagoYa no tienen comisión. Los retiros en agentes cuestan 0,50 dólares y las recargas de telefonía son gratuitas.'},
+    {'id': 'POL-07', 'titulo': 'Dispositivo nuevo', 'texto': 'Al iniciar sesión desde un dispositivo nuevo, la app pide verificación biométrica y limita las transferencias a 200 dólares durante las primeras 24 horas.'},
+    {'id': 'POL-08', 'titulo': 'Atención al cliente', 'texto': 'La atención por chat funciona las 24 horas. La línea telefónica atiende de lunes a sábado de 08:00 a 20:00. Los reclamos se registran en la app con un número de seguimiento.'},
+]
+
+
+class ServidorMCP:
+    """Servidor MÍNIMO con el formato de mensajes de MCP (JSON-RPC 2.0): initialize, tools/list y tools/call.
+    Didáctico: muestra herramientas acotadas, validación de identidad y registro de auditoría."""
+    def __init__(self, nombre):
+        self.nombre, self.herramientas, self.auditoria = nombre, {}, []
+
+    def herramienta(self, descripcion, parametros):
+        def registrar_funcion(funcion):
+            self.herramientas[funcion.__name__] = {'funcion': funcion, 'description': descripcion,
+                                                   'inputSchema': {'type': 'object', 'properties': parametros, 'required': list(parametros)}}
+            return funcion
+        return registrar_funcion
+
+    def atender(self, mensaje, usuario):
+        """Recibe un mensaje JSON-RPC (dict o texto) del cliente; usuario = identidad autenticada (no la decide el modelo)."""
+        m = json.loads(mensaje) if isinstance(mensaje, str) else mensaje
+        rid, metodo, par = m.get('id'), m.get('method'), m.get('params', {})
+        def error(codigo, texto):
+            return {'jsonrpc': '2.0', 'id': rid, 'error': {'code': codigo, 'message': texto}}
+        if metodo == 'initialize':
+            return {'jsonrpc': '2.0', 'id': rid, 'result': {'serverInfo': {'name': self.nombre}, 'capabilities': {'tools': {}}}}
+        if metodo == 'tools/list':
+            return {'jsonrpc': '2.0', 'id': rid, 'result': {'tools': [{'name': k, 'description': v['description'], 'inputSchema': v['inputSchema']}
+                                                                       for k, v in self.herramientas.items()]}}
+        if metodo == 'tools/call':
+            nombre, args = par.get('name'), par.get('arguments', {})
+            self.auditoria.append({'usuario': usuario, 'herramienta': nombre, 'argumentos': args})
+            if nombre not in self.herramientas:
+                return error(-32601, f'Herramienta desconocida: {nombre}')
+            if 'usuario_id' in args and args['usuario_id'] != usuario:
+                return error(-32001, 'Permiso denegado: solo puede consultar sus propios datos')
+            try:
+                salida = self.herramientas[nombre]['funcion'](**args)
+            except Exception as e:
+                return error(-32602, f'Parámetros inválidos: {e}')
+            return {'jsonrpc': '2.0', 'id': rid, 'result': {'content': [{'type': 'text', 'text': json.dumps(salida, ensure_ascii=False)}]}}
+        return error(-32601, f'Método no soportado: {metodo}')
 
 def resumen(total=7):
     """Muestra el avance de la clase y recuerda guardar en GitHub."""
